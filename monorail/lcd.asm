@@ -12,102 +12,102 @@
 .equ DELAY_1MS = F_CPU / 4 / 1000 - 4   ; 4 cycles per iteration - setup/call-return overhead
 
 .macro lcd_set
-	sbi PORTA, @0
+    sbi PORTA, @0
 .endmacro
 
 .macro lcd_clr
-	cbi PORTA, @0
+    cbi PORTA, @0
 .endmacro
 
 .macro do_lcd_command
-	ldi r16, @0
-	rcall lcd_command
-	rcall lcd_wait
+    ldi r16, @0
+    rcall lcd_command
+    rcall lcd_wait
 .endmacro
 
 .macro do_lcd_data
-	ldi r16, @0
-	rcall lcd_data
-	rcall lcd_wait
+    ldi r16, @0
+    rcall lcd_data
+    rcall lcd_wait
 .endmacro
 
 halt:
-	rjmp halt
+    rjmp halt
 
 ;
 ; Send a command to the LCD (r16)
 ;
 
 lcd_command:
-	out PORTF, r16
-	nop
-	lcd_set LCD_E
-	nop
-	nop
-	nop
-	lcd_clr LCD_E
-	nop
-	nop
-	nop
-	ret
+    out PORTF, r16
+    nop
+    lcd_set LCD_E
+    nop
+    nop
+    nop
+    lcd_clr LCD_E
+    nop
+    nop
+    nop
+    ret
 
 lcd_data:
-	out PORTF, r16
-	lcd_set LCD_RS
-	nop
-	nop
-	nop
-	lcd_set LCD_E
-	nop
-	nop
-	nop
-	lcd_clr LCD_E
-	nop
-	nop
-	nop
-	lcd_clr LCD_RS
-	ret
+    out PORTF, r16
+    lcd_set LCD_RS
+    nop
+    nop
+    nop
+    lcd_set LCD_E
+    nop
+    nop
+    nop
+    lcd_clr LCD_E
+    nop
+    nop
+    nop
+    lcd_clr LCD_RS
+    ret
 
 lcd_wait:
-	push r16
-	clr r16
-	out DDRF, r16
-	out PORTF, r16
-	lcd_set LCD_RW
+    push r16
+    clr r16
+    out DDRF, r16
+    out PORTF, r16
+    lcd_set LCD_RW
 
 lcd_wait_loop:
-	nop
-	lcd_set LCD_E
-	nop
-	nop
-	nop
-	in r16, PINF
-	lcd_clr LCD_E
-	sbrc r16, 7
-	rjmp lcd_wait_loop
-	lcd_clr LCD_RW
-	ser r16
-	out DDRF, r16
-	pop r16
-	ret
+    nop
+    lcd_set LCD_E
+    nop
+    nop
+    nop
+    in r16, PINF
+    lcd_clr LCD_E
+    sbrc r16, 7
+    rjmp lcd_wait_loop
+    lcd_clr LCD_RW
+    ser r16
+    out DDRF, r16
+    pop r16
+    ret
 
 sleep_1ms:
-	push r24
-	push r25
-	ldi r25, high(DELAY_1MS)
-	ldi r24, low(DELAY_1MS)
+    push r24
+    push r25
+    ldi r25, high(DELAY_1MS)
+    ldi r24, low(DELAY_1MS)
 
 delayloop_1ms:
-	sbiw r25:r24, 1
-	brne delayloop_1ms
-	pop r25
-	pop r24
-	ret
+    sbiw r25:r24, 1
+    brne delayloop_1ms
+    pop r25
+    pop r24
+    ret
 
 sleep_5ms:
-	rcall sleep_1ms
-	rcall sleep_1ms
-	rcall sleep_1ms
-	rcall sleep_1ms
-	rcall sleep_1ms
-	ret
+    rcall sleep_1ms
+    rcall sleep_1ms
+    rcall sleep_1ms
+    rcall sleep_1ms
+    rcall sleep_1ms
+    ret
