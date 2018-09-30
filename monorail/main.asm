@@ -5,6 +5,10 @@
 ; Author : cwlam
 ;
 
+.include "m2560def.inc"
+
+.include "keypad.asm"
+.include "lcd.asm"
 
 ; Replace with your application code
 start:
