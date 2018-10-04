@@ -20,6 +20,7 @@ jmp EXT_INT1
 .org OVF0addr
 jmp TimerOVF
 
+.include "util.asm"
 .include "keypad.asm"
 .include "lcd.asm"
 .include "timer.asm"

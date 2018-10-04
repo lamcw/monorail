@@ -80,6 +80,9 @@
     <Compile Include="timer.asm">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="util.asm">
+      <SubType>Code</SubType>
+    </Compile>
   </ItemGroup>
   <Import Project="$(AVRSTUDIO_EXE_PATH)\\Vs\\Assembler.targets" />
 </Project>

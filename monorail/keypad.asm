@@ -109,4 +109,6 @@ zero:
 
 convert_end:
     out PORTC, r16                  ; write value to PORTC
+    rcall sleep_100ms               ; sleep to stablize keypad
+    rcall sleep_50ms
     ret                             ; return to caller
