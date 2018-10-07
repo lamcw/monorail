@@ -68,19 +68,19 @@
     </ToolchainSettings>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="keypad.asm">
+    <Compile Include="keypad.inc">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="lcd.asm">
+    <Compile Include="lcd.inc">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="main.asm">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="timer.asm">
+    <Compile Include="timer.inc">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="util.asm">
+    <Compile Include="util.inc">
       <SubType>Code</SubType>
     </Compile>
   </ItemGroup>
