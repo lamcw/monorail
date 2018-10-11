@@ -9,6 +9,10 @@
 .def temp = r16
 
 .dseg
+max_station: .byte 1
+station_names: .byte 100
+station_travel_times: .byte 10
+stop_time: .byte 1
 
 .cseg
 .org 0
@@ -19,6 +23,13 @@
     jmp     EXT_INT1
 .org OVF0addr
     jmp     TIMER0_OVF
+
+INVALID: .db "! "
+MAX_STATION_PROMPT: .db "max stations:", 0
+STATION_NAME_PROMPT: .db "name"
+STATION_TIME_PROMPT: .db "time"
+STOP_TIME_PROMPT: .db "stop time "
+WAIT_PROMPT: .db "wait 5 sec"
 
 .include "keypad.inc"
 .include "lcd.inc"
@@ -38,6 +49,18 @@ RESET:
     ser     temp
     out     DDRF, temp
     out     DDRA, temp
+    out     DDRE, temp
+    out     DDRC, temp
+
+    clr     temp
+    sts     OCR3BL, temp
+    sts     OCR3BH, temp
+    ldi     temp, (1 << CS30)       ; no prescaling
+    sts     TCCR3B, temp
+    ldi     temp, (1 << WGM30) | (1 << COM3B1)
+    ; WGM30 = 1: phase correct PWM
+    ; COM3B1 = 1: OC3B override the normal port functionality of the I/O pin PE2
+    sts     TCCR3A, temp
 
     clr     temp
     out     PORTF, temp
@@ -53,17 +76,24 @@ RESET:
     ori     temp, (1 << INT0) | (1 << INT1)
     out     EIMSK, temp	            ; enable EXT_INT0 and EXT_INT1
 
-    do_lcd_command 0b00111000   ; 2x5x7
+    do_lcd_command 0b00111000       ; 2x5x7
     rcall   sleep_5ms
-    do_lcd_command 0b00111000   ; 2x5x7
+    do_lcd_command 0b00111000       ; 2x5x7
     rcall   sleep_1ms
-    do_lcd_command 0b00111000   ; 2x5x7
-    do_lcd_command 0b00111000   ; 2x5x7
-    do_lcd_command 0b00001000   ; display off?
-    do_lcd_command 0b00000001   ; clear display
-    do_lcd_command 0b00000110   ; increment, no display shift
-    do_lcd_command 0b00001110   ; Cursor on, bar, no blink
-    jmp     main
+    do_lcd_command 0b00111000       ; 2x5x7
+    do_lcd_command 0b00111000       ; 2x5x7
+    do_lcd_command 0b00001000       ; display off?
+    do_lcd_command 0b00000001       ; clear display
+    do_lcd_command 0b00000110       ; increment, no display shift
+    do_lcd_command 0b00001110       ; Cursor on, bar, no blink
+    clr     temp
+    out     TCCR0A, temp
+    ldi     temp, 0b10
+    out     TCCR0B, temp
+    ldi     temp, (1 << TOIE0)
+    sts     TIMSK0, temp            ; enable Timer0 overflow interrupt
+    sei
+    rjmp     main
 
 ; handle PB0 interrupt
 EXT_INT0:
@@ -75,13 +105,9 @@ EXT_INT1:
 TIMER0_OVF:
 
 main:
-    clr     temp
-    out     TCCR0A, temp
-    ldi     temp, 0b10
-    out     TCCR0B, temp
-    ldi     temp, (1 << TOIE0)
-    sts     TIMSK0, temp            ; enable Timer0 overflow interrupt
-    sei
+    do_lcd_command 0b00000001
+    prompt_pm MAX_STATION_PROMPT
+    rcall   keypad_main
 
 end:
     rjmp    end
