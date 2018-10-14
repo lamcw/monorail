@@ -13,6 +13,7 @@
 ; extended I/O. Typically "LDS" and "STS" combined with "SBRS", "SBRC", "SBR", and "CBR".
 
 .include "m2560def.inc"
+.include "lcd.inc"
 
 .def row = r17
 .def col = r18
@@ -24,43 +25,112 @@
 .equ INITROWMASK = 0x01
 .equ ROWMASK = 0x0F
 
+.equ NUM_MODE = 1 << 0
+.equ TEXT_MODE = 1 << 1
+
 ; main keeps scanning the keypad to find which key is pressed.
-keypad_main:
+input:
+    push    r16
+    push    r17
+    push    r18
+    push    r19
+    push    r20
+    push    r21                         ; previous keypress
+    push    r22                         ; stores result
+    push    r23                         ; temp
+    clr     r22
+    clr     r25                         ; input str length
+
+_input_main:
     ldi     keypad_mask, INITCOLMASK    ; initial column keypad_mask
     clr     col                         ; initial column
 
-colloop:
+_colloop:
     sts     PORTL, keypad_mask          ; set column to keypad_mask value
                                         ; (sets column 0 off)
     ldi     r16, 0xFF                   ; implement a delay so the
                                         ; hardware can stabilize
 
-keypad_delay:
+_keypad_delay:
     dec     r16
-    brne    keypad_delay
+    brne    _keypad_delay
     lds     r16, PINL                   ; read PORTL. Cannot use in 
     andi    r16, ROWMASK                ; read only the row bits
     cpi     r16, 0xF                    ; check if any rows are grounded
-    breq    nextcol                     ; if not go to the next column
+    breq    _nextcol                    ; if not go to the next column
     ldi     keypad_mask, INITROWMASK    ; initialise row check
     clr     row                         ; initial row
 
-rowloop:      
+_rowloop:      
     mov     keypad_temp, r16
     and     keypad_temp, keypad_mask    ; check masked bit
-    brne    skipconv			        ; if the result is non-zero,
+    brne    _skipconv			        ; if the result is non-zero,
 	                                    ; we need to look again
     rcall   convert                     ; if bit is clear, convert the bitcode
-    jmp     keypad_main                 ; and start again
+    rcall   sleep_100ms                 ; stabalize keypad
+    rcall   sleep_50ms
+    cpi     r16, 0xF                    ; if pressed hash
+    breq    _end_input
+    cpi     r24, TEXT_MODE
+    breq    _handles_text_mode
+    ; number input
+    ldi     r23, 10
+    mul     r22, r23
+    mov     r22, r0
+    add     r22, r16
+    subi    r16, -'0'
+    do_lcd_data r16
+    rjmp    _input_main
 
-skipconv:
+_to_input_main:
+    rjmp    _input_main
+
+_handles_text_mode:
+    cpi     r16, 0x0
+    breq    _space
+    cpi     r16, 0xA
+    brlo    _select_char
+    cpi     r16, 0xD                    ; checks if key entered is letter
+    brlo    _lt_D
+    rjmp    _input_main
+
+_lt_D:
+    cpi     r16, 0xA
+    brge    _valid_select
+    rjmp    _input_main
+
+_valid_select:
+    mov     r21, r16
+    subi    r21, 0xA
+    rjmp    _input_main
+
+_select_char:
+    subi    r16, 1
+    ldi     r23, 3
+    mul     r16, r23
+    mov     r16, r0
+    add     r16, r21
+    subi    r16, -'A'
+    rjmp    _end_select
+
+_space:
+    ldi     r16, ' '
+
+_end_select:
+    do_lcd_data r16
+    st      x+, r16
+    inc     r25
+    clr     r21
+    rjmp    _input_main
+
+_skipconv:
     inc     row                         ; else move to the next row
     lsl     keypad_mask                 ; shift the keypad_mask to the next bit
-    jmp     rowloop
-     
-nextcol:     
+    jmp     _rowloop
+
+_nextcol:     
     cpi     col, 3                      ; check if we're on the last column
-    breq    keypad_main                 ; if so, no buttons were pushed,
+    breq    _to_input_main              ; if so, no buttons were pushed,
 	                                    ; so start again.
 
     sec                                 ; else shift the column keypad_mask:
@@ -71,10 +141,22 @@ nextcol:
 	                                    ; sure all the rows have
 	                                    ; pull-up resistors
     inc     col                         ; increment column value
-    jmp     colloop                     ; and check the next column
+    jmp     _colloop                    ; and check the next column
 	                                    ; convert function converts the row and column given to a
 	                                    ; binary number and also outputs the value to PORTC.
 	                                    ; Inputs come from registers row and col and output is in r16
+
+_end_input:
+    mov     r24, r22
+    pop     r23
+    pop     r22
+    pop     r21
+    pop     r20
+    pop     r19
+    pop     r18
+    pop     r17
+    pop     r16
+    ret
 
 convert:
     cpi     col, 3                      ; if column is 3 we have a letter
@@ -111,9 +193,6 @@ zero:
     clr     r16                         ; set to zero
 
 convert_end:
-    out     PORTC, r16                  ; write value to PORTC
-    rcall   sleep_100ms                 ; sleep to stablize keypad
-    rcall   sleep_50ms
     ret                                 ; return to caller
 
 #endif

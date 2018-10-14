@@ -20,21 +20,27 @@
 .endmacro
 
 .macro do_lcd_command
+    push    r16
     ldi     r16, @0
     rcall   lcd_command
     rcall   lcd_wait
+    pop     r16
 .endmacro
 
 .macro do_lcd_data
+    push    r16
     mov     r16, @0
     rcall   lcd_data
     rcall   lcd_wait
+    pop     r16
 .endmacro
 
 .macro do_lcd_data_i
+    push    r16
     ldi     r16, @0
     rcall   lcd_data
     rcall   lcd_wait
+    pop     r16
 .endmacro
 
 .macro prompt_pm
@@ -44,7 +50,7 @@
 .endmacro
 
 ; print a 16 bit int
-/* .macro print_int_16
+.macro print_int_16
     push    @0
     push    @1
     push    temp
@@ -146,7 +152,7 @@ _end_reverse:
     pop     r18
     pop     r17
     pop     r16
-.endmacro */
+.endmacro
 
 print_str_pm:
     push    r16

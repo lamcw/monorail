@@ -3,6 +3,6 @@
 
 .include "m2560def.inc"
 
-.equ INT_COUNT = 7812
+.equ INT_SEC_COUNT = 7812
 
 #endif
