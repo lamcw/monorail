@@ -11,6 +11,7 @@
 .equ WAIT_5 = 1 << 0
 .equ TRAVEL = 1 << 1
 .equ STOP = 1 << 2
+.equ MAX_STR_SIZE = 11
 
 .dseg
 ; configs
@@ -19,13 +20,16 @@ station_names: .byte 110
 station_travel_times: .byte 10
 stop_time: .byte 1
 
-stage: .byte 1
-current_station: .byte 1
-request_stop: .byte 1
+; sim status
+stage: .byte 1                      ; one of: WAIT_5, STOP, TRAVEL
+to_station: .byte 1                 ; 0 to n-1
+request_stop: .byte 1               ; true if PB0 or PB1 is pressed
+sec_left: .byte 1                   ; count seconds left to start/stop monorail
 
-enable_timer: .byte 1
+enable_timer: .byte 1               ; true to enable timer
 timer0ovf_count: .byte 2
 timer0ovf_count_led: .byte 2
+timer0ovf_count_stop: .byte 2
 time_passed: .byte 2
 
 is_led_on: .byte 1
@@ -121,7 +125,7 @@ RESET:
     sts     time_passed+1, temp
     sts     stage, temp
     sts     enable_timer, temp
-    sts     current_station, temp
+    sts     to_station, temp
     sts     request_stop, temp
     sts     is_led_on, temp
     rjmp    main
@@ -154,10 +158,6 @@ EXT_INT1:
     pop     temp
     reti
 
-_to_end_timer0_ovf:
-    rjmp    _end_timer0_ovf
-_to_store_ovf_count:
-    rjmp    _store_ovf_count
 ; handle timer0 overflow interrupt
 TIMER0_OVF:
     push    temp
@@ -169,10 +169,6 @@ TIMER0_OVF:
     push    r28
     push    r29
 
-    lds     temp, enable_timer          ; if timer not enabled
-    tst     temp
-    breq    _to_end_timer0_ovf
-
     lds     r23, stage
     cpi     r23, TRAVEL
     breq    _turn_led_off
@@ -181,6 +177,8 @@ TIMER0_OVF:
     lds     r28, timer0ovf_count_led
     lds     r29, timer0ovf_count_led+1
     adiw    r29:r28, 1
+    sts     timer0ovf_count_led, r28
+    sts     timer0ovf_count_led+1, r29
     cpi     r28, low(INT_SEC_COUNT / 3)
     ldi     temp, high(INT_SEC_COUNT / 3)
     cpc     r29, temp
@@ -189,8 +187,8 @@ TIMER0_OVF:
 
 _toggle_led:
     clr     temp
-    clr     r28
-    clr     r29
+    sts     timer0ovf_count_led, temp
+    sts     timer0ovf_count_led+1, temp
     lds     temp, is_led_on
     tst     temp
     brne    _turn_led_off
@@ -204,8 +202,12 @@ _turn_led_off:
     clr     temp
     out     PORTC, temp
     sts     is_led_on, temp
-   
+
 _timer:
+    lds     temp, enable_timer          ; if timer not enabled
+    tst     temp
+    breq    _end_timer0_ovf
+
     lds     r24, timer0ovf_count
     lds     r25, timer0ovf_count+1
     adiw    r25:r24, 1
@@ -223,26 +225,24 @@ _timer:
     clr     r25
     cpi     r23, WAIT_5
     breq    _handle_wait_5
+    cpi     r23, TRAVEL
+    breq    _handle_travel
+    cpi     r23, STOP
+    breq    _handle_stop
     rjmp    _store_ovf_count
 
 _handle_wait_5:
-    cpi     r28, 5
-    brne    _store_ovf_count
-
-    do_lcd_command 0b00000001
-    clr     temp
-    sts     time_passed, temp
-    sts     time_passed+1, temp         ; resets time
-    sts     current_station, temp       ; station starts from 0
-    ldi     temp, TRAVEL
-    sts     stage, temp
-    rcall   motor_rotate
+    rcall   handle_wait_5
+    rjmp    _store_ovf_count
+_handle_travel:
+    rcall   handle_travel
+    rjmp    _store_ovf_count
+_handle_stop:
+    rcall   handle_stop
 
 _store_ovf_count:
     sts     timer0ovf_count, r24
     sts     timer0ovf_count+1, r25
-    sts     timer0ovf_count_led, r28
-    sts     timer0ovf_count_led+1, r29
 
 _end_timer0_ovf:
     pop     r29
@@ -254,6 +254,117 @@ _end_timer0_ovf:
     out     SREG, temp
     pop     temp
     reti
+
+handle_stop:
+    lds     temp, sec_left
+    subi    temp, 1
+    sts     sec_left, temp
+    tst     temp
+    brne    _end_handle_stop
+    lds     temp, to_station
+    lds     r23, max_station
+    inc     temp
+    cp      temp, r23
+    brne    _handle_stop_2
+    clr     temp
+
+_handle_stop_2:
+    sts     to_station, temp
+    do_lcd_command 0b00000001
+    print_str_2d station_names, temp, MAX_STR_SIZE
+    ldi     xl, low(station_travel_times)
+    ldi     xh, high(station_travel_times)
+    add     xl, temp
+    clr     r23
+    adc     xh, r23
+    ld      temp, x
+    sts     sec_left, temp
+    ldi     temp, TRAVEL
+    sts     stage, temp
+    rcall   motor_rotate
+
+_end_handle_stop:
+    sts     time_passed, temp           ; reset time
+    sts     time_passed+1, temp
+    clr     r24
+    clr     r25
+    ret
+
+handle_travel:
+    lds     temp, sec_left
+    subi    temp, 1
+    sts     sec_left, temp
+    tst     temp
+    brne    _end_handle_travel          ; should we stop the monorail?
+    lds     temp, request_stop
+    tst     temp
+    breq    _no_request_stop            ; PB0 or PB1 pressed?
+    rcall   motor_stop
+    clr     temp
+    sts     request_stop, temp
+    lds     temp, stop_time
+    sts     sec_left, temp              ; sec_left = stop time
+    ldi     temp, STOP
+    sts     stage, temp                 ; update status
+    rjmp    _end_handle_travel
+
+_no_request_stop:
+    lds     r24, to_station
+    lds     r25, max_station
+    inc     r24                         ; access next station
+    cp      r24, r25
+    brne    _no_request_stop_2
+    clr     r24
+
+_no_request_stop_2:
+    do_lcd_command 0b00000001
+    print_str_2d station_names, r24, MAX_STR_SIZE
+    sts     to_station, r24
+    ldi     xl, low(station_travel_times)
+    ldi     xh, high(station_travel_times)
+    clr     temp
+    add     xl, r24
+    adc     xh, temp
+    ld      temp, x
+    sts     sec_left, temp
+
+_end_handle_travel:
+    clr     temp
+    sts     time_passed, temp           ; reset time
+    sts     time_passed+1, temp
+    clr     r24
+    clr     r25
+    ret
+
+handle_wait_5:
+    cpi     r28, 5
+    brne    _end_handle_wait_5
+
+    clr     temp
+    sts     time_passed, temp
+    sts     time_passed+1, temp         ; resets time
+    clr     r24
+    clr     r25
+    ldi     temp, 1
+    lds     r23, max_station
+    cpi     r23, 1
+    brne    _init
+    clr     temp
+
+_init:
+    sts     to_station, temp            ; station starts from 2
+    do_lcd_command 0b00000001
+    print_str_2d station_names, temp, MAX_STR_SIZE
+    ldi     xl, low(station_travel_times)
+    ldi     xh, high(station_travel_times)
+    ld      temp, x
+    sts     sec_left, temp
+    ldi     temp, TRAVEL
+    sts     stage, temp
+    rcall   motor_rotate
+
+_end_handle_wait_5:
+    ret
 
 main:
     rcall   step_1
@@ -272,7 +383,7 @@ _main_loop:
     cpi     temp, WAIT_5
     breq    _main_loop
     ldi     r24, NUM_MODE
-    rcall   input
+    rcall   input                   ; receive hash input
     cpi     temp, TRAVEL
     breq    _main_handle_stop
     cpi     temp, STOP
@@ -282,12 +393,16 @@ _main_handle_stop:
     rcall   motor_stop
     ldi     temp, STOP
     sts     stage, temp
+    clr     temp
+    sts     enable_timer, temp
     rjmp    _end_main_loop
 
 _main_handle_travel:
     rcall   motor_rotate
     ldi     temp, TRAVEL
     sts     stage, temp
+    ldi     temp, 1
+    sts     enable_timer, temp
 
 _end_main_loop:
     rjmp    _main_loop
@@ -336,9 +451,10 @@ _step_2_loop:                           ; keeps receiving input until correct
     ldi     r24, TEXT_MODE
     ldi     xl, low(station_names)
     ldi     xh, high(station_names)
-    ldi     r18, 11
+    ldi     r18, MAX_STR_SIZE
     mul     temp, r18
     add     xl, r0
+    adc     xh, r1
     rcall   input
 
 _check_step_2:
@@ -357,7 +473,7 @@ _do_step_2:
     ldi     r24, TEXT_MODE
     ldi     xl, low(station_names)
     ldi     xh, high(station_names)
-    ldi     r18, 11
+    ldi     r18, MAX_STR_SIZE
     mul     temp, r18
     add     xl, r0
     adc     xh, r1
@@ -369,11 +485,11 @@ _end_step_2_loop:
     st      x, r18                      ; write terminating char
     ldi     xl, low(station_names)
     ldi     xh, high(station_names)
-    ldi     r18, 11
+    ldi     r18, MAX_STR_SIZE
+    inc     temp
     mul     temp, r18
     add     xl, r0
     adc     xh, r1
-    inc     temp
     rjmp    _step_2_loop
 
 _end_step_2:
@@ -438,7 +554,7 @@ _do_step_3:
     rjmp    _check_step_3
 
 _end_step_3_loop:
-    st      x+, r22
+    st      x+, r24
     inc     temp
     rjmp    _step_3_loop
 
