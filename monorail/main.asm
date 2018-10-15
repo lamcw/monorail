@@ -178,8 +178,8 @@ TIMER0_OVF:
     adiw    r29:r28, 1
     sts     timer0ovf_count_led, r28
     sts     timer0ovf_count_led+1, r29
-    cpi     r28, low(INT_SEC_COUNT / 3)
-    ldi     temp, high(INT_SEC_COUNT / 3)
+    cpi     r28, low(INT_SEC_COUNT / 6)
+    ldi     temp, high(INT_SEC_COUNT / 6)
     cpc     r29, temp
     brge    _toggle_led
     rjmp    _timer
