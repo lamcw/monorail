@@ -91,8 +91,7 @@ RESET:
 
     ; the built-in constants ISC10=2 and ISC00=0 are their bit numbers in EICRA register
     ldi     temp, (2 << ISC10) | (2 << ISC00)
-    ; temp = 0b00001010 so both interrupts are configured as falling edge triggered interrupts
-    sts     EICRA, temp
+    sts     EICRA, temp             ; falling edge triggers interrupt
     in      temp, EIMSK
     ori     temp, (1 << INT0) | (1 << INT1)
     out     EIMSK, temp	            ; enable EXT_INT0 and EXT_INT1
