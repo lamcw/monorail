@@ -9,7 +9,7 @@
 
 \author{%
 Thomas Lam \quad \texttt{z5136612} \\
-Akshin Goswami
+Akshin Goswami \quad \texttt{z5117650} \\
 }
 \title{%
 The Univerisity of New South Wales \\
@@ -152,4 +152,8 @@ An infinite loop runs in main function constantly scan for inputs and check if h
     \item macro \texttt{prompt\_pm} print string in program memory. in = memory address of string
     \item macro \texttt{print\_str\_2d} print string in a 2D array. in = memory address of string, index, maximum size of string 
 \end{itemize}
+
+\section{Board Configuration}
+PWM signal would causes the board to reset. To counter this, connect Mot pin to POT pin, and connect JP91 to PE2. Then adjust the potentiometer to tune the motor speed.
+
 \end{document}
