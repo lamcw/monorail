@@ -29,7 +29,6 @@ sec_left: .byte 1                   ; count seconds left to start/stop monorail
 enable_timer: .byte 1               ; true to enable timer
 timer0ovf_count: .byte 2
 timer0ovf_count_led: .byte 2
-timer0ovf_count_stop: .byte 2
 time_passed: .byte 2
 
 is_led_on: .byte 1
